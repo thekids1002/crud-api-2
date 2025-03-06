@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from 'src/entity/category.entity';
+import { NotFoundException } from 'src/exception/exceptionParser';
 import PaginationResult, { paginate } from 'src/util/paginate';
 import { Repository } from 'typeorm';
-import { IsNull, Not } from 'typeorm';
 
 @Injectable()
 export class CategoryService {
@@ -27,7 +27,11 @@ export class CategoryService {
   }
 
   findById(id: number): Promise<Category | null> {
-    return this.categoryRepository.findOneBy({ id });
+    const category =  this.categoryRepository.findOneBy({ id });
+    if(!category){
+      throw new NotFoundException('Not Found');
+    }
+    return category;
   }
 
   create(category: Category): Promise<Category> {

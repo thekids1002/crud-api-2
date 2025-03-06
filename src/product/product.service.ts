@@ -1,6 +1,7 @@
 import { Product } from './../entity/product.entity';
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { NotFoundException } from 'src/exception/exceptionParser';
 import PaginationResult, { paginate } from 'src/util/paginate';
 import { Repository } from 'typeorm';
 
@@ -25,8 +26,12 @@ export class ProductService {
     });
   }
 
-  findById(id: number): Promise<Product | null> {
-    return this.productRepository.findOneBy({ id });
+  async findById(id: number): Promise<Product | null> {
+    const product = await this.productRepository.findOneBy({ id });
+    if (!product) {
+      throw new NotFoundException('Not Founds');
+    }
+    return product;
   }
 
   create(product: Product): Promise<Product> {
