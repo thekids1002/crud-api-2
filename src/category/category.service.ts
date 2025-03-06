@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from 'src/entity/category.entity';
-import { NotFoundException } from 'src/exception/exceptionParser';
 import PaginationResult, { paginate } from 'src/util/paginate';
 import { Repository } from 'typeorm';
+import { CreateCategoryRequest } from './payload/request/createCategoryRequest';
 
 @Injectable()
 export class CategoryService {
@@ -27,14 +27,18 @@ export class CategoryService {
   }
 
   findById(id: number): Promise<Category | null> {
-    const category =  this.categoryRepository.findOneBy({ id });
-    if(!category){
-      throw new NotFoundException('Not Found');
+    try {
+      const category = this.categoryRepository.findOneBy({ id });
+      if (!category) {
+        throw new NotFoundException();
+      }
+      return category;
+    } catch (e) {
+      throw e;
     }
-    return category;
   }
 
-  create(category: Category): Promise<Category> {
+  create(category: CreateCategoryRequest): Promise<Category> {
     const newCategory = this.categoryRepository.create(category);
     return this.categoryRepository.save(newCategory);
   }

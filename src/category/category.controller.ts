@@ -1,6 +1,7 @@
 import { Category } from 'src/entity/category.entity';
 import { CategoryService } from './category.service';
 import { Body, Controller, Delete, Get, Param, Post, Put, Req } from '@nestjs/common';
+import { CreateCategoryRequest } from './payload/request/createCategoryRequest';
 
 @Controller('category')
 export class CategoryController {
@@ -19,7 +20,7 @@ export class CategoryController {
     }
 
     @Post()
-    public create(@Body() category:Category){
+    public create(@Body() category:CreateCategoryRequest){
         return this.categoryService.create(category);
     }
 

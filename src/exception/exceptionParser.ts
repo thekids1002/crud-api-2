@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 
 export class BaseHttpException extends HttpException {
-  constructor(message: string, statusCode: number) {
+  constructor(message: any, statusCode: number) {
     super({ status: false, message }, statusCode);
   }
 }
@@ -73,8 +73,8 @@ export class UnsupportedMediaTypeException extends BaseHttpException {
 }
 
 export class UnprocessableEntityException extends BaseHttpException {
-  constructor(message: string) {
-    super(message, HttpStatus.UNPROCESSABLE_ENTITY);
+  constructor(message: any) {
+    super(message?.message, HttpStatus.UNPROCESSABLE_ENTITY);
   }
 }
 
