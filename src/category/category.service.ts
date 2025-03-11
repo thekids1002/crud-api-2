@@ -48,10 +48,12 @@ export class CategoryService {
     return this.categoryRepository.findOneBy({ id });
   }
 
-  remove(id: number): Promise<Boolean> {
-    return this.categoryRepository
-      .delete(id)
-      .then(() => true)
-      .catch(() => false);
+  async remove(id: number): Promise<boolean> {
+    try {
+      await this.categoryRepository.delete(id);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

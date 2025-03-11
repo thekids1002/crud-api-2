@@ -22,8 +22,8 @@ function registerValidation(app) {
         enableImplicitConversion: true,
       },
       exceptionFactory: (errors) => {
-        const mappedErrors = errors.map(error => ({
-          [error.property]: Object.values(error.constraints || {})
+        const mappedErrors = errors.map((error) => ({
+          [error.property]: Object.values(error.constraints || {}),
         }));
         return new UnprocessableEntityException({ errors: mappedErrors });
       },
