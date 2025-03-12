@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from 'src/entity/category.entity';
 import PaginationResult, { paginate } from 'src/util/paginate';
 import { Repository } from 'typeorm';
-import { IsNull, Not } from 'typeorm';
+import { CreateCategoryRequest } from './payload/request/createCategoryRequest';
 
 @Injectable()
 export class CategoryService {
@@ -27,10 +27,18 @@ export class CategoryService {
   }
 
   findById(id: number): Promise<Category | null> {
-    return this.categoryRepository.findOneBy({ id });
+    try {
+      const category = this.categoryRepository.findOneBy({ id });
+      if (!category) {
+        throw new NotFoundException();
+      }
+      return category;
+    } catch (e) {
+      throw e;
+    }
   }
 
-  create(category: Category): Promise<Category> {
+  create(category: CreateCategoryRequest): Promise<Category> {
     const newCategory = this.categoryRepository.create(category);
     return this.categoryRepository.save(newCategory);
   }
@@ -40,10 +48,12 @@ export class CategoryService {
     return this.categoryRepository.findOneBy({ id });
   }
 
-  remove(id: number): Promise<Boolean> {
-    return this.categoryRepository
-      .delete(id)
-      .then(() => true)
-      .catch(() => false);
+  async remove(id: number): Promise<boolean> {
+    try {
+      await this.categoryRepository.delete(id);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

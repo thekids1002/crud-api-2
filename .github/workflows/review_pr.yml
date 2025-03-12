@@ -1,0 +1,98 @@
+name: AI Code Review with ChatGPT
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install @octokit/rest openai --save-dev
+
+      - name: Run AI Code Review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          node -e '
+            (async () => {
+              try {
+                const { Octokit } = await import("@octokit/rest");
+                const OpenAI = await import("openai");
+
+                const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+                const [owner, repo] = process.env.GITHUB_REPOSITORY.split("/");
+                const pull_number = process.env.GITHUB_REF.split("/")[2];
+
+                const response = await octokit.pulls.listFiles({
+                  owner,
+                  repo,
+                  pull_number,
+                });
+
+                const files = response.data.map(f => `${f.filename}:\n${f.patch || "No changes"}`).join("\n\n");
+
+                const openai = new OpenAI.default({
+                  apiKey: process.env.OPENAI_API_KEY,
+                });
+
+                const aiResponse = await openai.chat.completions.create({
+                  model: "gpt-4o-mini", // Hoặc "gpt-4" nếu có quyền
+                  messages: [
+                    {
+                      role: "system",
+                      content: "Bạn là một lập trình viên cấp cao với hơn 10 năm kinh nghiệm, chuyên sâu trong việc review code thực chiến. Hãy review pull request này với góc nhìn chuyên nghiệp, tập trung vào:\\n" +
+                        "- **Logic và bug**: Phát hiện lỗi logic, bug tiềm ẩn hoặc edge case bị bỏ qua.\\n" +
+                        "- **Coding style**: Đánh giá tính nhất quán, tuân thủ best practices (DRY, SOLID nếu áp dụng).\\n" +
+                        "- **Hiệu suất**: Chỉ ra đoạn code có thể tối ưu (vòng lặp, truy vấn DB, memory leak).\\n" +
+                        "- **Đặt tên**: Nhận xét tên biến, hàm, class có ý nghĩa, dễ hiểu và theo chuẩn không.\\n" +
+                        "- **Bảo mật**: Kiểm tra lỗ hổng (SQL Injection, XSS, CSRF, hard-coded secrets).\\n" +
+                        "- **Thiết kế và refactor**: Đề xuất cải thiện cấu trúc, tách hàm/class, hoặc áp dụng design pattern nếu cần.\\n" +
+                        "Trả lời ngắn gọn, súc tích, dùng bullet points, ưu tiên chất lượng hơn số lượng. Đưa ra ví dụ cụ thể nếu có."
+                    },
+                    {
+                      role: "user",
+                      content: `${files}`
+                    }
+                  ],
+                  max_tokens: 1500, // Tăng lên để đủ chi tiết
+                  temperature: 0.7 // Giữ sáng tạo vừa phải, giống senior
+                });
+
+                const reviewContent = aiResponse.choices[0].message.content;
+
+                await octokit.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  body: `### AI Code Review by Senior Bot\n\n${reviewContent}`,
+                });
+              } catch (error) {
+                console.error("Error during AI review:", error);
+                const { Octokit } = await import("@octokit/rest");
+                const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+                await octokit.issues.createComment({
+                  owner: process.env.GITHUB_REPOSITORY.split("/")[0],
+                  repo: process.env.GITHUB_REPOSITORY.split("/")[1],
+                  issue_number: process.env.GITHUB_REF.split("/")[2],
+                  body: "### AI Code Review Failed\nCó lỗi xảy ra trong quá trình review. Vui lòng kiểm tra log workflow.",
+                });
+                process.exit(1);
+              }
+            })();
+          '
