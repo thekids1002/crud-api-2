@@ -53,6 +53,11 @@ export class CategoryService {
     return this.categoryRepository.findOneBy({ id });
   }
 
+  /**
+   * Xóa danh mục theo ID.
+   * @param id - ID của danh mục cần xóa.
+   * @returns Kết quả xóa danh mục.
+   */
   async remove(id: number): Promise<boolean> {
     try {
       await this.categoryRepository.delete(id);
@@ -68,6 +73,9 @@ export class CategoryService {
    * @returns Danh mục nếu tìm thấy, ném lỗi NotFoundException nếu không tìm thấy.
    */
   async findBySlug(slug: string): Promise<Category | null> {
+    if (!slug || typeof slug !== 'string') {
+      throw new BadRequestException('Slug must be a non-empty string.');
+    }
     try {
       return await this.categoryRepository.findOneOrFail({
         where: { slug },
@@ -85,6 +93,9 @@ export class CategoryService {
    * @returns Danh mục nếu tìm thấy, ngược lại null.
    */
   async findBySlugWithProducts(slug: string): Promise<Category | null> {
+    if (!slug || typeof slug !== 'string') {
+      throw new BadRequestException('Slug must be a non-empty string.');
+    }
     return await this.categoryRepository.findOne({
       where: { slug },
       relations: { products: true },
