@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from 'src/entity/category.entity';
 import PaginationResult, { paginate } from 'src/util/paginate';
@@ -48,6 +53,11 @@ export class CategoryService {
     return this.categoryRepository.findOneBy({ id });
   }
 
+  /**
+   * Xóa danh mục theo ID.
+   * @param id - ID của danh mục cần xóa.
+   * @returns Kết quả xóa danh mục.
+   */
   async remove(id: number): Promise<boolean> {
     try {
       await this.categoryRepository.delete(id);
@@ -55,5 +65,40 @@ export class CategoryService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Tìm kiếm danh mục theo slug.
+   * @param slug - Đường dẫn slug của danh mục.
+   * @returns Danh mục nếu tìm thấy, ném lỗi NotFoundException nếu không tìm thấy.
+   */
+  async findBySlug(slug: string): Promise<Category | null> {
+    if (!slug || typeof slug !== 'string') {
+      throw new BadRequestException('Slug must be a non-empty string.');
+    }
+    try {
+      return await this.categoryRepository.findOneOrFail({
+        where: { slug },
+        relations: { products: true },
+      });
+    } catch (error) {
+      // Xử lý lỗi nếu không tìm thấy
+      throw new NotFoundException(`Category with slug ${slug} not found.`);
+    }
+  }
+
+  /**
+   * Tìm kiếm danh mục theo slug và bao gồm sản phẩm liên quan.
+   * @param slug - Đường dẫn slug của danh mục.
+   * @returns Danh mục nếu tìm thấy, ngược lại null.
+   */
+  async findBySlugWithProducts(slug: string): Promise<Category | null> {
+    if (!slug || typeof slug !== 'string') {
+      throw new BadRequestException('Slug must be a non-empty string.');
+    }
+    return await this.categoryRepository.findOne({
+      where: { slug },
+      relations: { products: true },
+    });
   }
 }

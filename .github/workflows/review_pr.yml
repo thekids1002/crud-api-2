@@ -39,39 +39,55 @@ jobs:
                 const [owner, repo] = process.env.GITHUB_REPOSITORY.split("/");
                 const pull_number = process.env.GITHUB_REF.split("/")[2];
 
-                const response = await octokit.pulls.listFiles({
+                const prResponse = await octokit.pulls.get({
+                  owner,
+                  repo,
+                  pull_number,
+                });
+                const prTitle = prResponse.data.title;
+                const prBody = prResponse.data.body || "No description provided";
+
+                const filesResponse = await octokit.pulls.listFiles({
                   owner,
                   repo,
                   pull_number,
                 });
 
-                const files = response.data.map(f => `${f.filename}:\n${f.patch || "No changes"}`).join("\n\n");
+                const files = filesResponse.data.map(f => {
+                  return `${f.filename} (Status: ${f.status}):\n` +
+                         `Changes:\n${f.patch || "No changes"}\n` +
+                         `Lines added: ${f.additions}, Lines removed: ${f.deletions}`;
+                }).join("\n\n");
+
+                // Kiểm tra kích thước dữ liệu gửi lên
+                if (files.length > 50000) {
+                  throw new Error("PR quá lớn để review tự động. Vui lòng chia nhỏ PR.");
+                }
 
                 const openai = new OpenAI.default({
                   apiKey: process.env.OPENAI_API_KEY,
                 });
 
                 const aiResponse = await openai.chat.completions.create({
-                  model: "gpt-4o-mini", // Hoặc "gpt-4" nếu có quyền
+                  model: "gpt-4o-mini",
                   messages: [
                     {
                       role: "system",
-                      content: "Bạn là một lập trình viên cấp cao với hơn 10 năm kinh nghiệm, chuyên sâu trong việc review code thực chiến. Hãy review pull request này với góc nhìn chuyên nghiệp, tập trung vào:\\n" +
-                        "- **Logic và bug**: Phát hiện lỗi logic, bug tiềm ẩn hoặc edge case bị bỏ qua.\\n" +
-                        "- **Coding style**: Đánh giá tính nhất quán, tuân thủ best practices (DRY, SOLID nếu áp dụng).\\n" +
-                        "- **Hiệu suất**: Chỉ ra đoạn code có thể tối ưu (vòng lặp, truy vấn DB, memory leak).\\n" +
-                        "- **Đặt tên**: Nhận xét tên biến, hàm, class có ý nghĩa, dễ hiểu và theo chuẩn không.\\n" +
-                        "- **Bảo mật**: Kiểm tra lỗ hổng (SQL Injection, XSS, CSRF, hard-coded secrets).\\n" +
-                        "- **Thiết kế và refactor**: Đề xuất cải thiện cấu trúc, tách hàm/class, hoặc áp dụng design pattern nếu cần.\\n" +
-                        "Trả lời ngắn gọn, súc tích, dùng bullet points, ưu tiên chất lượng hơn số lượng. Đưa ra ví dụ cụ thể nếu có."
+                      content: "Bạn là một senior developer với 10+ năm kinh nghiệm thực chiến. Hãy review code trong pull request này một cách chi tiết và thực tế:\n" +
+                               "Consider:\n" +
+                               "1. **Bugs/Edge cases**: Tìm lỗi logic, bug nghiêm trọng, hoặc trường hợp biên chưa xử lý.\n" +
+                               "2. **Performance**: Chỉ ra đoạn code kém tối ưu (CPU, memory, I/O) và cách cải thiện.\n" +
+                               "3. **Readability**: Kiểm tra code có dễ hiểu không (đặt tên, cấu trúc, comment); đề xuất cách làm rõ hơn.\n" +
+                               "4. Kiểm tra xem các hàm đã có docs-comment chưa, nếu chưa có thì đề xuất cách làm rõ hơn.\n" +
+                               "Trả lời bằng bullet points, mỗi điểm kèm: đoạn code lỗi (nếu có), đường dẫn file, code mẫu để fix, và lý do ngắn gọn. Tập trung vào vấn đề quan trọng, tránh lan man. TRẢ LỜI BẰNG TIẾNG VIỆT"
                     },
                     {
                       role: "user",
-                      content: `${files}`
+                      content: `PR Title: ${prTitle}\nPR Description: ${prBody}\n\nFiles:\n${files}`
                     }
                   ],
-                  max_tokens: 1500, // Tăng lên để đủ chi tiết
-                  temperature: 0.7 // Giữ sáng tạo vừa phải, giống senior
+                  max_tokens: 4000, // Giới hạn hợp lý để tiết kiệm chi phí
+                  temperature: 0.5
                 });
 
                 const reviewContent = aiResponse.choices[0].message.content;
@@ -90,7 +106,7 @@ jobs:
                   owner: process.env.GITHUB_REPOSITORY.split("/")[0],
                   repo: process.env.GITHUB_REPOSITORY.split("/")[1],
                   issue_number: process.env.GITHUB_REF.split("/")[2],
-                  body: "### AI Code Review Failed\nCó lỗi xảy ra trong quá trình review. Vui lòng kiểm tra log workflow.",
+                  body: `### AI Code Review Failed\nCó lỗi xảy ra trong quá trình review: ${error.message}`,
                 });
                 process.exit(1);
               }

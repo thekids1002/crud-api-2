@@ -20,4 +20,7 @@ export class Category {
 
   @OneToMany(() => Product, (product) => product.category)
   products: Product[];
+
+  @Column({ unique: true })
+  slug: string;
 }
