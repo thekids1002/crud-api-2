@@ -65,7 +65,7 @@ jobs:
                 const aiResponse = await openai.chat.completions.create({
                   model: "gpt-4o-mini",
                   content: "Bạn là một lập trình viên cấp cao, có nhiều kinh nghiệm trong việc đánh giá và tối ưu code. Hãy review đoạn code sau và đưa ra nhận xét chi tiết:\\n- Kiểm tra lỗi logic, bug tiềm ẩn.\\n- Đánh giá coding style, best practices.\\n- Đề xuất cách tối ưu hiệu suất.\\n- Nhận xét về cách đặt tên biến, hàm, class (có rõ ràng, dễ hiểu không?).\\n- Kiểm tra bảo mật (SQL Injection, XSS, CSRF nếu có).\\n- Đề xuất refactor nếu cần."
-                  max_tokens: 20000,
+                  max_tokens: 1000,
                 });
 
                 const reviewContent = aiResponse.choices[0].message.content;
