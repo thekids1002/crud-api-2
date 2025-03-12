@@ -1,0 +1,55 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run AI Review
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { Octokit } = require("@octokit/rest");
+            const { Configuration, OpenAIApi } = require("openai");
+
+            const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+
+            const prNumber = context.payload.pull_request.number;
+            const repoOwner = context.repo.owner;
+            const repoName = context.repo.repo;
+
+            const response = await octokit.pulls.listFiles({
+              owner: repoOwner,
+              repo: repoName,
+              pull_number: prNumber,
+            });
+
+            const files = response.data.map(f => `${f.filename}: ${f.patch}`).join("\n\n");
+
+            // Sử dụng API Key từ GitHub Secrets
+            const configuration = new Configuration({
+              apiKey: process.env.OPENAI_API_KEY,
+            });
+
+            const openai = new OpenAIApi(configuration);
+
+            const aiResponse = await openai.createChatCompletion({
+              model: "gpt-4o",
+              messages: [{ role: "user", content: `Hãy review PR này:\n${files}` }],
+            });
+
+            await octokit.issues.createComment({
+              owner: repoOwner,
+              repo: repoName,
+              issue_number: prNumber,
+              body: `### AI Code Review\n${aiResponse.data.choices[0].message.content}`,
+            });
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
