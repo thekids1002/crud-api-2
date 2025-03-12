@@ -52,18 +52,26 @@ jobs:
                 });
 
                 const aiResponse = await openai.chat.completions.create({
-                  model: "gpt-4o-mini",
+                  model: "gpt-4o-mini", // Hoặc "gpt-4" nếu có quyền
                   messages: [
                     {
                       role: "system",
-                      content: "Bạn là một lập trình viên cấp cao, có nhiều kinh nghiệm trong việc đánh giá và tối ưu code. Hãy review đoạn code sau và đưa ra nhận xét chi tiết:\\n- Kiểm tra lỗi logic, bug tiềm ẩn.\\n- Đánh giá coding style, best practices.\\n- Đề xuất cách tối ưu hiệu suất.\\n- Nhận xét về cách đặt tên biến, hàm, class (có rõ ràng, dễ hiểu không?).\\n- Kiểm tra bảo mật (SQL Injection, XSS, CSRF nếu có).\\n- Đề xuất refactor nếu cần."
+                      content: "Bạn là một lập trình viên cấp cao với hơn 10 năm kinh nghiệm, chuyên sâu trong việc review code thực chiến. Hãy review pull request này với góc nhìn chuyên nghiệp, tập trung vào:\\n" +
+                        "- **Logic và bug**: Phát hiện lỗi logic, bug tiềm ẩn hoặc edge case bị bỏ qua.\\n" +
+                        "- **Coding style**: Đánh giá tính nhất quán, tuân thủ best practices (DRY, SOLID nếu áp dụng).\\n" +
+                        "- **Hiệu suất**: Chỉ ra đoạn code có thể tối ưu (vòng lặp, truy vấn DB, memory leak).\\n" +
+                        "- **Đặt tên**: Nhận xét tên biến, hàm, class có ý nghĩa, dễ hiểu và theo chuẩn không.\\n" +
+                        "- **Bảo mật**: Kiểm tra lỗ hổng (SQL Injection, XSS, CSRF, hard-coded secrets).\\n" +
+                        "- **Thiết kế và refactor**: Đề xuất cải thiện cấu trúc, tách hàm/class, hoặc áp dụng design pattern nếu cần.\\n" +
+                        "Trả lời ngắn gọn, súc tích, dùng bullet points, ưu tiên chất lượng hơn số lượng. Đưa ra ví dụ cụ thể nếu có."
                     },
                     {
                       role: "user",
-                      content: `Review pull request này:\\n\\n${files}`
+                      content: `${files}`
                     }
                   ],
-                  max_tokens: 10000,
+                  max_tokens: 1500, // Tăng lên để đủ chi tiết
+                  temperature: 0.7 // Giữ sáng tạo vừa phải, giống senior
                 });
 
                 const reviewContent = aiResponse.choices[0].message.content;
@@ -72,7 +80,7 @@ jobs:
                   owner,
                   repo,
                   issue_number: pull_number,
-                  body: `### AI Code Review by ChatGPT\n\n${reviewContent}`,
+                  body: `### AI Code Review by Senior Bot\n\n${reviewContent}`,
                 });
               } catch (error) {
                 console.error("Error during AI review:", error);
