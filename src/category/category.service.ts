@@ -34,7 +34,6 @@ export class CategoryService {
       }
       return category;
     } catch (e) {
-      console.log(e);
       throw e;
     }
   }
