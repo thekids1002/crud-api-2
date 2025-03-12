@@ -40,9 +40,5 @@ export class CategoryController {
   public remove(@Param('id') id: number) {
     return this.categoryService.remove(id);
   }
-
-  @Get('test')
-  public test() {
-    return this.categoryService.test();
-  }
+  
 }
