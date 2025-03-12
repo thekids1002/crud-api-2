@@ -63,9 +63,7 @@ export class CategoryService {
   }
 
   async findBySlug(slug: string): Promise<Category | null> {
-    if (!this.isValidSlug(slug)) {
-      throw new BadRequestException('Invalid slug format');
-    }
+    
     const category = await this.categoryRepository.findOne({ where: { slug } });
     if (!category) {
       throw new NotFoundException(`Category with slug ${slug} not found`);
@@ -78,18 +76,7 @@ export class CategoryService {
       where: { slug },
       relations: { products: true },
     });
-    if (!category) {
-      throw new NotFoundException(`Category with slug ${slug} not found`);
-    }
+    
     return category;
-  }
-
-  /**
-   * Validates the slug format.
-   * @param slug - The slug to validate.
-   * @returns True if the slug is valid, false otherwise.
-   */
-  private isValidSlug(slug: string): boolean {
-    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
   }
 }
