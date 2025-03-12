@@ -53,26 +53,16 @@ jobs:
                   pull_number,
                 });
 
-                const files = await Promise.all(filesResponse.data.map(async f => {
-                  let fileContent = "";
-                  if (f.status === "modified" || f.status === "added") {
-                    try {
-                      const contentResponse = await octokit.repos.getContent({
-                        owner,
-                        repo,
-                        path: f.filename,
-                        ref: prResponse.data.head.sha,
-                      });
-                      fileContent = Buffer.from(contentResponse.data.content, "base64").toString("utf8");
-                    } catch (e) {
-                      fileContent = "[Unable to fetch full content]";
-                    }
-                  }
-                  return `${f.filename} (Status: ${f.status}):\\n` +
-                         `Changes:\\n${f.patch || "No changes"}\\n` +
-                         `Full content:\\n${fileContent}\\n` +
+                const files = filesResponse.data.map(f => {
+                  return `${f.filename} (Status: ${f.status}):\n` +
+                         `Changes:\n${f.patch || "No changes"}\n` +
                          `Lines added: ${f.additions}, Lines removed: ${f.deletions}`;
-                })).then(results => results.join("\\n\\n"));
+                }).join("\n\n");
+
+                // Kiểm tra kích thước dữ liệu gửi lên
+                if (files.length > 50000) {
+                  throw new Error("PR quá lớn để review tự động. Vui lòng chia nhỏ PR.");
+                }
 
                 const openai = new OpenAI.default({
                   apiKey: process.env.OPENAI_API_KEY,
@@ -83,21 +73,21 @@ jobs:
                   messages: [
                     {
                       role: "system",
-                      content: "Bạn là một senior developer với 10+ năm kinh nghiệm thực chiến. Hãy review code trong pull request này một cách chi tiết và thực tế:\\n" +
-                               "Consider:\\n" +
-                               "1. **Code quality**: Đánh giá tính sạch sẽ, tuân thủ best practices (DRY, SOLID), và có dễ mở rộng không.\\n" +
-                               "2. **Bugs/Edge cases**: Tìm lỗi logic, bug nghiêm trọng, hoặc trường hợp biên chưa xử lý.\\n" +
-                               "3. **Performance**: Chỉ ra đoạn code kém tối ưu (CPU, memory, I/O) và cách cải thiện.\\n" +
-                               "4. **Readability**: Kiểm tra code có dễ hiểu không (đặt tên, cấu trúc, comment); đề xuất cách làm rõ hơn.\\n" +
-                               "5. **Security**: Phát hiện lỗ hổng cụ thể (injection, data leak, auth issues) và cách khắc phục.\\n" +
+                      content: "Bạn là một senior developer với 10+ năm kinh nghiệm thực chiến. Hãy review code trong pull request này một cách chi tiết và thực tế:\n" +
+                               "Consider:\n" +
+                               "1. **Code quality**: Đánh giá tính sạch sẽ, tuân thủ best practices (DRY, SOLID), và có dễ mở rộng không.\n" +
+                               "2. **Bugs/Edge cases**: Tìm lỗi logic, bug nghiêm trọng, hoặc trường hợp biên chưa xử lý.\n" +
+                               "3. **Performance**: Chỉ ra đoạn code kém tối ưu (CPU, memory, I/O) và cách cải thiện.\n" +
+                               "4. **Readability**: Kiểm tra code có dễ hiểu không (đặt tên, cấu trúc, comment); đề xuất cách làm rõ hơn.\n" +
+                               "5. **Security**: Phát hiện lỗ hổng cụ thể (injection, data leak, auth issues) và cách khắc phục.\n" +
                                "Trả lời bằng bullet points, mỗi điểm kèm: đoạn code lỗi (nếu có), code mẫu để fix, và lý do ngắn gọn. Tập trung vào vấn đề quan trọng, tránh lan man."
                     },
                     {
                       role: "user",
-                      content: `PR Title: ${prTitle}\\nPR Description: ${prBody}\\n\\nFiles:\\n${files}`
+                      content: `PR Title: ${prTitle}\nPR Description: ${prBody}\n\nFiles:\n${files}`
                     }
                   ],
-                  max_tokens: 10000,
+                  max_tokens: 4000, // Giới hạn hợp lý để tiết kiệm chi phí
                   temperature: 0.5
                 });
 
@@ -117,7 +107,7 @@ jobs:
                   owner: process.env.GITHUB_REPOSITORY.split("/")[0],
                   repo: process.env.GITHUB_REPOSITORY.split("/")[1],
                   issue_number: process.env.GITHUB_REF.split("/")[2],
-                  body: "### AI Code Review Failed\nCó lỗi xảy ra trong quá trình review: " + error.message,
+                  body: `### AI Code Review Failed\nCó lỗi xảy ra trong quá trình review: ${error.message}`,
                 });
                 process.exit(1);
               }
