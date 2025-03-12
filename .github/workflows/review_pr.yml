@@ -21,20 +21,8 @@ jobs:
         with:
           node-version: '20'
 
-      # Thêm bước cache node_modules
-      - name: Cache node modules
-        id: cache-npm
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm # Cache cả npm global cache
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
-
-      # Cài dependencies, chỉ chạy npm install nếu cache miss
       - name: Install dependencies
         run: npm install @octokit/rest openai --save-dev
-        if: steps.cache-npm.outputs.cache-hit != 'true' # Chỉ cài nếu không có cache
 
       - name: Run AI Code Review
         env:
@@ -82,8 +70,8 @@ jobs:
                       content: `${files}`
                     }
                   ],
-                  max_tokens: 1500,
-                  temperature: 0.7
+                  max_tokens: 1500, // Tăng lên để đủ chi tiết
+                  temperature: 0.7 // Giữ sáng tạo vừa phải, giống senior
                 });
 
                 const reviewContent = aiResponse.choices[0].message.content;
