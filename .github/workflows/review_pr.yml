@@ -1,55 +1,90 @@
-name: AI Code Review
+name: AI Code Review with ChatGPT
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
-  review:
+  ai-review:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Run AI Review
-        uses: actions/github-script@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { Octokit } = require("@octokit/rest");
-            const { Configuration, OpenAIApi } = require("openai");
+          node-version: '20'
 
-            const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+      - name: Install dependencies
+        run: npm install @octokit/rest openai --save-dev
 
-            const prNumber = context.payload.pull_request.number;
-            const repoOwner = context.repo.owner;
-            const repoName = context.repo.repo;
-
-            const response = await octokit.pulls.listFiles({
-              owner: repoOwner,
-              repo: repoName,
-              pull_number: prNumber,
-            });
-
-            const files = response.data.map(f => `${f.filename}: ${f.patch}`).join("\n\n");
-
-            // Sử dụng API Key từ GitHub Secrets
-            const configuration = new Configuration({
-              apiKey: process.env.OPENAI_API_KEY,
-            });
-
-            const openai = new OpenAIApi(configuration);
-
-            const aiResponse = await openai.createChatCompletion({
-              model: "gpt-4o",
-              messages: [{ role: "user", content: `Hãy review PR này:\n${files}` }],
-            });
-
-            await octokit.issues.createComment({
-              owner: repoOwner,
-              repo: repoName,
-              issue_number: prNumber,
-              body: `### AI Code Review\n${aiResponse.data.choices[0].message.content}`,
-            });
+      - name: Run AI Code Review
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          node -e '
+            (async () => {
+              try {
+                const { Octokit } = await import("@octokit/rest");
+                const OpenAI = await import("openai");
+
+                const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+                const [owner, repo] = process.env.GITHUB_REPOSITORY.split("/");
+                const pull_number = process.env.GITHUB_REF.split("/")[2];
+
+                const response = await octokit.pulls.listFiles({
+                  owner,
+                  repo,
+                  pull_number,
+                });
+
+                const files = response.data.map(f => `${f.filename}:\n${f.patch || "No changes"}`).join("\n\n");
+
+                const openai = new OpenAI.default({
+                  apiKey: process.env.OPENAI_API_KEY,
+                });
+
+                const aiResponse = await openai.chat.completions.create({
+                  model: "gpt-4o-mini",
+                  messages: [
+                    {
+                      role: "system",
+                      content: "Bạn là một lập trình viên cấp cao, có nhiều kinh nghiệm trong việc đánh giá và tối ưu code. Hãy review đoạn code sau và đưa ra nhận xét chi tiết:\\n- Kiểm tra lỗi logic, bug tiềm ẩn.\\n- Đánh giá coding style, best practices.\\n- Đề xuất cách tối ưu hiệu suất.\\n- Nhận xét về cách đặt tên biến, hàm, class (có rõ ràng, dễ hiểu không?).\\n- Kiểm tra bảo mật (SQL Injection, XSS, CSRF nếu có).\\n- Đề xuất refactor nếu cần."
+                    },
+                    {
+                      role: "user",
+                      content: `Review pull request này:\\n\\n${files}`
+                    }
+                  ],
+                  max_tokens: 10000,
+                });
+
+                const reviewContent = aiResponse.choices[0].message.content;
+
+                await octokit.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  body: `### AI Code Review by ChatGPT\n\n${reviewContent}`,
+                });
+              } catch (error) {
+                console.error("Error during AI review:", error);
+                const { Octokit } = await import("@octokit/rest");
+                const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+                await octokit.issues.createComment({
+                  owner: process.env.GITHUB_REPOSITORY.split("/")[0],
+                  repo: process.env.GITHUB_REPOSITORY.split("/")[1],
+                  issue_number: process.env.GITHUB_REF.split("/")[2],
+                  body: "### AI Code Review Failed\nCó lỗi xảy ra trong quá trình review. Vui lòng kiểm tra log workflow.",
+                });
+                process.exit(1);
+              }
+            })();
+          '
