@@ -56,4 +56,24 @@ export class CategoryService {
       return false;
     }
   }
+
+  async findBySlug(slug: string): Promise<Category | null> {
+    return this.categoryRepository.findOneBy({ slug });
+  }
+
+  async findBySlugWithProducts(slug: string): Promise<Category | null> {
+    return this.categoryRepository.findOne({
+      where: { slug },
+      relations: { products: true },
+    });
+  }
+
+  async findBySlugWithProducts(slug: string): Promise<Category | null> {
+    return this.categoryRepository.findOne({
+      where: { slug },
+      relations: { products: true },
+    });
+  }
+
+  
 }
