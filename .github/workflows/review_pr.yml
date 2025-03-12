@@ -90,7 +90,7 @@ jobs:
                                "3. **Performance**: Chỉ ra đoạn code kém tối ưu (CPU, memory, I/O) và cách cải thiện.\\n" +
                                "4. **Readability**: Kiểm tra code có dễ hiểu không (đặt tên, cấu trúc, comment); đề xuất cách làm rõ hơn.\\n" +
                                "5. **Security**: Phát hiện lỗ hổng cụ thể (injection, data leak, auth issues) và cách khắc phục.\\n" +
-                               "Trả lời bằng bullet points, mỗi điểm kèm gợi ý cụ thể và lý do ngắn gọn. Tập trung vào vấn đề quan trọng, tránh lan man."
+                               "Trả lời bằng bullet points, mỗi điểm kèm: đoạn code lỗi (nếu có), code mẫu để fix, và lý do ngắn gọn. Tập trung vào vấn đề quan trọng, tránh lan man."
                     },
                     {
                       role: "user",
