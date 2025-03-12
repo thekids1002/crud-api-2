@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from 'src/entity/category.entity';
 import PaginationResult, { paginate } from 'src/util/paginate';
@@ -58,7 +58,14 @@ export class CategoryService {
   }
 
   async findBySlug(slug: string): Promise<Category | null> {
-    return this.categoryRepository.findOneBy({ slug });
+    if(!this.isValidSlug(slug)) {
+      throw new BadRequestException('Invalid slug');
+    }
+    const category = await this.categoryRepository.findOneBy({ slug });
+    if (!category) {
+      throw new NotFoundException(`Category with slug ${slug} not found`);
+    }
+    return category;
   }
 
   async findBySlugWithProducts(slug: string): Promise<Category | null> {
@@ -68,12 +75,7 @@ export class CategoryService {
     });
   }
 
-  async findBySlugWithProducts(slug: string): Promise<Category | null> {
-    return this.categoryRepository.findOne({
-      where: { slug },
-      relations: { products: true },
-    });
+  private isValidSlug(slug: string): boolean {
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
   }
-
-  
 }
