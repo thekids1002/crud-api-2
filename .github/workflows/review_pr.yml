@@ -67,14 +67,20 @@ jobs:
                   messages: [
                     {
                       role: "system",
-                      content: "Bạn là một chuyên gia review code. Hãy phân tích các thay đổi trong pull request và đưa ra nhận xét chi tiết, bao gồm điểm tốt, điểm cần cải thiện, và gợi ý nếu có."
+                      content: "Bạn là một lập trình viên cấp cao, có nhiều kinh nghiệm trong việc đánh giá và tối ưu code. Hãy review đoạn code sau và đưa ra nhận xét chi tiết:
+                      - Kiểm tra lỗi logic, bug tiềm ẩn.
+                      - Đánh giá coding style, best practices.
+                      - Đề xuất cách tối ưu hiệu suất.
+                      - Nhận xét về cách đặt tên biến, hàm, class (có rõ ràng, dễ hiểu không?).
+                      - Kiểm tra bảo mật (SQL Injection, XSS, CSRF nếu có).
+                      - Đề xuất refactor nếu cần."
                     },
                     {
                       role: "user",
                       content: `Review pull request này:\n\n${files}`
                     }
                   ],
-                  max_tokens: 1000,
+                  max_tokens: 20000,
                 });
 
                 const reviewContent = aiResponse.choices[0].message.content;
