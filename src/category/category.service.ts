@@ -62,12 +62,16 @@ export class CategoryService {
     }
   }
 
+  /**
+   * Tìm kiếm danh mục theo slug.
+   * @param slug - Đường dẫn slug của danh mục.
+   * @returns Danh mục nếu tìm thấy, ngược lại ném lỗi NotFoundException.
+   */
   async findBySlug(slug: string): Promise<Category | null> {
-    
-    const category = await this.categoryRepository.findOne({ where: { slug } });
-    if (!category) {
-      throw new NotFoundException(`Category with slug ${slug} not found`);
-    }
+    const category = await this.categoryRepository.findOneOrFail({
+      where: { slug },
+      relations: { products: true },
+    });
     return category;
   }
 
@@ -76,7 +80,7 @@ export class CategoryService {
       where: { slug },
       relations: { products: true },
     });
-    
+
     return category;
   }
 }
