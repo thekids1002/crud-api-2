@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write # Cần quyền ghi để commit file lịch sử
+  contents: read # Chỉ cần đọc code
   pull-requests: write
   issues: write
 
@@ -15,8 +15,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Lấy toàn bộ lịch sử để commit file
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -36,7 +34,6 @@ jobs:
               try {
                 const { Octokit } = await import("@octokit/rest");
                 const OpenAI = await import("openai");
-                const fs = await import("fs").then(m => m.promises);
 
                 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
                 const [owner, repo] = process.env.GITHUB_REPOSITORY.split("/");
@@ -68,15 +65,20 @@ jobs:
                   throw new Error("PR quá lớn để review tự động. Vui lòng chia nhỏ PR.");
                 }
 
-                // Đọc lịch sử review từ file
-                let reviewHistory = {};
-                const historyFile = ".github/ai-review-history.json";
-                try {
-                  reviewHistory = JSON.parse(await fs.readFile(historyFile, "utf8"));
-                } catch (e) {
-                  console.log("No review history file found, starting fresh.");
-                }
-                const previousReviews = reviewHistory[pull_number] || "Không có review trước đó";
+                // Lấy comment review cũ từ PR
+                const comments = await octokit.issues.listComments({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                });
+                const previousReviews = comments.data
+                  .filter(c => c.user.login === "github-actions[bot]" && c.body.includes("AI Code Review"))
+                  .slice(-1) // Chỉ lấy comment gần nhất
+                  .map(c => c.body.split("\n")
+                    .filter(line => line.startsWith("- ")) // Chỉ lấy bullet points
+                    .slice(0, 5) // Lấy tối đa 5 bullet points
+                    .join("\n"))
+                  .join("\n") || "Không có review trước đó";
 
                 // Gọi OpenAI API
                 const openai = new OpenAI.default({
@@ -114,30 +116,6 @@ jobs:
                   issue_number: pull_number,
                   body: `### AI Code Review by Senior Bot\n\n${reviewContent}`,
                 });
-
-                // Cập nhật lịch sử review
-                reviewHistory[pull_number] = (reviewHistory[pull_number] || "") + `\n${reviewContent.slice(0, 500)}`; // Lưu tối đa 500 ký tự
-                await fs.writeFile(historyFile, JSON.stringify(reviewHistory, null, 2));
-
-                // Commit file lịch sử
-                try {
-                  const currentFile = await octokit.repos.getContent({
-                    owner,
-                    repo,
-                    path: historyFile,
-                  }).catch(() => ({}));
-                  await octokit.repos.createOrUpdateFileContents({
-                    owner,
-                    repo,
-                    path: historyFile,
-                    message: `Update AI review history for PR #${pull_number}`,
-                    content: Buffer.from(JSON.stringify(reviewHistory, null, 2)).toString("base64"),
-                    sha: currentFile.data?.sha,
-                    branch: prResponse.data.head.ref,
-                  });
-                } catch (e) {
-                  console.log("Error committing history file:", e.message);
-                }
 
               } catch (error) {
                 console.error("Error during AI review:", error);
