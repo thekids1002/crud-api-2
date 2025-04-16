@@ -1,0 +1,3 @@
+{
+  "14": "\nDưới đây là các điểm cần lưu ý trong pull request này:\n\n1. **Bugs/Edge cases**:\n   - **Đoạn code lỗi**: \n     ```typescript\n     public test( id: number) {\n     ```\n     - **Đường dẫn file**: `src/product/product.controller.ts`\n     - **Code mẫu để fix**:\n       ```typescript\n       public test(@Param('id') id: number) {\n       ```\n     - **Lý do**: Thiếu decorator `@Param` cho tham số `id`, dẫn đến việc không thể lấy giá trị từ URL. Điều này có thể gây ra lỗi khi gọi endpoint.\n\n2. **Performance"
+}
