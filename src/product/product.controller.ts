@@ -9,6 +9,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
+import { BadRequestException } from 'src/exception/exceptionParser';
 
 @Controller('product')
 export class ProductController {
@@ -39,8 +40,16 @@ export class ProductController {
     return this.productService.remove(id);
   }
 
+ /**
+ * Test endpoint to return a hello message.
+ * @param id - The ID of the product to test.
+ * @returns {Object} A greeting message.
+ */
   @Get(':id')
-  public test( id: number) {
-    return "Hello word";
+  public test(@Param('id') id: number) {
+    if (isNaN(id)) {
+        throw new BadRequestException('ID must be a number');
+    }
+    return { message: "Hello world" };
   }
 }
