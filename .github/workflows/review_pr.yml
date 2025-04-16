@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read
+  contents: write # Cần quyền ghi để commit file lịch sử
   pull-requests: write
   issues: write
 
@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Lấy toàn bộ lịch sử để commit file
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,11 +36,13 @@ jobs:
               try {
                 const { Octokit } = await import("@octokit/rest");
                 const OpenAI = await import("openai");
+                const fs = await import("fs").then(m => m.promises);
 
                 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
                 const [owner, repo] = process.env.GITHUB_REPOSITORY.split("/");
                 const pull_number = process.env.GITHUB_REF.split("/")[2];
 
+                // Lấy thông tin PR
                 const prResponse = await octokit.pulls.get({
                   owner,
                   repo,
@@ -47,23 +51,34 @@ jobs:
                 const prTitle = prResponse.data.title;
                 const prBody = prResponse.data.body || "No description provided";
 
+                // Lấy danh sách file trong PR
                 const filesResponse = await octokit.pulls.listFiles({
                   owner,
                   repo,
                   pull_number,
                 });
-
                 const files = filesResponse.data.map(f => {
                   return `${f.filename} (Status: ${f.status}):\n` +
                          `Changes:\n${f.patch || "No changes"}\n` +
                          `Lines added: ${f.additions}, Lines removed: ${f.deletions}`;
                 }).join("\n\n");
 
-                // Kiểm tra kích thước dữ liệu gửi lên
-                if (files.length > 50000) {
+                // Kiểm tra kích thước dữ liệu
+                if (files.length > 30000) {
                   throw new Error("PR quá lớn để review tự động. Vui lòng chia nhỏ PR.");
                 }
 
+                // Đọc lịch sử review từ file
+                let reviewHistory = {};
+                const historyFile = ".github/ai-review-history.json";
+                try {
+                  reviewHistory = JSON.parse(await fs.readFile(historyFile, "utf8"));
+                } catch (e) {
+                  console.log("No review history file found, starting fresh.");
+                }
+                const previousReviews = reviewHistory[pull_number] || "Không có review trước đó";
+
+                // Gọi OpenAI API
                 const openai = new OpenAI.default({
                   apiKey: process.env.OPENAI_API_KEY,
                 });
@@ -73,40 +88,66 @@ jobs:
                   messages: [
                     {
                       role: "system",
-                      content: "Bạn là một senior developer với 10+ năm kinh nghiệm thực chiến. Hãy review code trong pull request này một cách chi tiết và thực tế:\n" +
+                      content: "Bạn là một senior developer với 10+ năm kinh nghiệm thực chiến. Hãy review code trong pull request này một cách chi tiết và thực tế, dựa trên lịch sử review trước (nếu có):\n" +
                                "Consider:\n" +
                                "1. **Bugs/Edge cases**: Tìm lỗi logic, bug nghiêm trọng, hoặc trường hợp biên chưa xử lý.\n" +
                                "2. **Performance**: Chỉ ra đoạn code kém tối ưu (CPU, memory, I/O) và cách cải thiện.\n" +
                                "3. **Readability**: Kiểm tra code có dễ hiểu không (đặt tên, cấu trúc, comment); đề xuất cách làm rõ hơn.\n" +
-                               "4. Kiểm tra xem các hàm đã có docs-comment chưa, nếu chưa có thì đề xuất cách làm rõ hơn.\n" +
-                               "Trả lời bằng bullet points, mỗi điểm kèm: đoạn code lỗi (nếu có), đường dẫn file, code mẫu để fix, và lý do ngắn gọn. Tập trung vào vấn đề quan trọng, tránh lan man. TRẢ LỜI BẰNG TIẾNG VIỆT"
+                               "4. Kiểm tra xem các hàm đã có docs-comment chưa, nếu chưa thì đề xuất.\n" +
+                               "Trả lời bằng bullet points, mỗi điểm kèm: đoạn code lỗi (nếu có), đường dẫn file, code mẫu để fix, và lý do ngắn gọn. Tập trung vào vấn đề quan trọng, tránh lan man. TRẢ LỜI BẰNG TIẾNG VIỆT."
                     },
                     {
                       role: "user",
-                      content: `PR Title: ${prTitle}\nPR Description: ${prBody}\n\nFiles:\n${files}`
+                      content: `Lịch sử review trước:\n${previousReviews}\n\nPR Title: ${prTitle}\nPR Description: ${prBody}\n\nFiles:\n${files}`
                     }
                   ],
-                  max_tokens: 4000, // Giới hạn hợp lý để tiết kiệm chi phí
+                  max_tokens: 1500, // Tiết kiệm token cho quota miễn phí
                   temperature: 0.5
                 });
 
                 const reviewContent = aiResponse.choices[0].message.content;
 
+                // Đăng comment review lên PR
                 await octokit.issues.createComment({
                   owner,
                   repo,
                   issue_number: pull_number,
                   body: `### AI Code Review by Senior Bot\n\n${reviewContent}`,
                 });
+
+                // Cập nhật lịch sử review
+                reviewHistory[pull_number] = (reviewHistory[pull_number] || "") + `\n${reviewContent.slice(0, 500)}`; // Lưu tối đa 500 ký tự
+                await fs.writeFile(historyFile, JSON.stringify(reviewHistory, null, 2));
+
+                // Commit file lịch sử
+                try {
+                  const currentFile = await octokit.repos.getContent({
+                    owner,
+                    repo,
+                    path: historyFile,
+                  }).catch(() => ({}));
+                  await octokit.repos.createOrUpdateFileContents({
+                    owner,
+                    repo,
+                    path: historyFile,
+                    message: `Update AI review history for PR #${pull_number}`,
+                    content: Buffer.from(JSON.stringify(reviewHistory, null, 2)).toString("base64"),
+                    sha: currentFile.data?.sha,
+                    branch: prResponse.data.head.ref,
+                  });
+                } catch (e) {
+                  console.log("Error committing history file:", e.message);
+                }
+
               } catch (error) {
                 console.error("Error during AI review:", error);
                 const { Octokit } = await import("@octokit/rest");
                 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
                 await octokit.issues.createComment({
-                  owner: process.env.GITHUB_REPOSITORY.split("/")[0],
-                  repo: process.env.GITHUB_REPOSITORY.split("/")[1],
+                  owner,
+                  repo,
                   issue_number: process.env.GITHUB_REF.split("/")[2],
-                  body: `### AI Code Review Failed\nCó lỗi xảy ra trong quá trình review: ${error.message}`,
+                  body: `### AI Code Review Failed\nCó lỗi xảy ra: ${error.message}`,
                 });
                 process.exit(1);
               }
