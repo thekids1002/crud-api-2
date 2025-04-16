@@ -39,8 +39,12 @@ export class ProductController {
     return this.productService.remove(id);
   }
   
+  /**
+   * Test endpoint to return a greeting message.
+   * @param id - The ID parameter from the request.
+   */
   @Get(':id')
-  public test( id: number) {
-    return "Hello word";
+  public test(@Param('id') id: number) {
+    return { message: "Hello world" };
   }
 }
