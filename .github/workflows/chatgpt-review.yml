@@ -1,0 +1,30 @@
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  code_review_job:
+    runs-on: ubuntu-latest
+    name: ChatGPT Code Review
+    steps:
+      - name: GenAI Code Review
+        uses: cirolini/genai-code-review@v2
+        with:
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_pr_id: ${{ github.event.number }}
+          openai_model: "gpt-4o-mini" # optional
+          openai_temperature: 0.5 # optional
+          openai_max_tokens: 2048 # optional
+          mode: files # files or patch
+          language: vi # optional, default is 'en'
+          custom_prompt: >
+            You are a senior software engineer reviewing a pull request. Please provide constructive feedback on the changes in the files, focusing on:
+            - Code readability and clarity
+            - Best practices and design patterns
+            - Performance and efficiency
+            - Potential bugs or issues
+            - Naming conventions and consistency
+            - Opportunities for refactoring or improvement
+
+            If the code is already clean and effective, acknowledge that too. Be helpful, precise, and professional in your comments.
