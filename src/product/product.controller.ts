@@ -38,4 +38,9 @@ export class ProductController {
   remove(@Param('id') id: number) {
     return this.productService.remove(id);
   }
+
+  @Get(':id')
+  public test( id: number) {
+    return "Hello word";
+  }
 }
